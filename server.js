@@ -1,19 +1,21 @@
 // ================== IMPORT MODULES ==================
+require('dotenv').config(); // Load .env locally
 const express = require("express");
 const mongoose = require("mongoose");
 const axios = require("axios");
 const cors = require("cors");
 const cron = require("node-cron");
 
+// ================== ENV VARIABLES ==================
+const PORT = process.env.PORT || 5000;
+const API_KEY = process.env.API_KEY;
+const MONGODB_URI = process.env.MONGODB_URI;
+const JWT_SECRET = process.env.JWT_SECRET || "your_super_secret_jwt_key";
+
 // ================== INIT APP ==================
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// ================== ENV VARIABLES ==================
-const PORT = process.env.PORT || 5000;
-const API_KEY = process.env.API_KEY;           // Set in Railway
-const MONGODB_URI = process.env.MONGODB_URI;   // Set in Railway
 
 // ================== CONNECT MONGODB ==================
 mongoose
