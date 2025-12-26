@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Air Quality Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
+    h1 { color: #333; text-align: center; }
+    table { border-collapse: collapse; width: 100%; background: #fff; margin-top: 20px; }
+    th, td { padding: 12px; border: 1px solid #ccc; text-align: center; }
+    th { background: #222; color: #fff; }
+    tr.green { background-color: #b2f2bb; }
+    tr.yellow { background-color: #fff3bf; }
+    tr.orange { background-color: #ffa94d; }
+    tr.red { background-color: #ff6b6b; }
+    tr.purple { background-color: #843b62; color: white; }
+  </style>
+</head>
+<body>
+  <h1>Air Quality Dashboard</h1>
+  <table id="aqiTable">
+    <thead>
+      <tr>
+        <th>City</th>
+        <th>AQI</th>
+        <th>PM2.5</th>
+        <th>PM10</th>
+        <th>Timestamp</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    function getAQIColor(aqi) {
+      if (aqi === 1) return "green";
+      if (aqi === 2) return "yellow";
+      if (aqi === 3) return "orange";
+      if (aqi === 4) return "red";
+      if (aqi === 5) return "purple";
+      return "";
+    }
+
+    async function loadAQI() {
+      const res = await fetch("/aqi");
+      const data = await res.json();
+      const tbody = document.querySelector("#aqiTable tbody");
+      tbody.innerHTML = "";
+
+      // Group latest entry per city
+      const latestData = {};
+      data.forEach(entry => {
+        if (!latestData[entry.city] || new Date(entry.timestamp) > new Date(latestData[entry.city].timestamp)) {
+          latestData[entry.city] = entry;
+        }
+      });
+
+      Object.values(latestData).forEach(entry => {
+        const city = entry.city;
+        const aqi = entry.list[0].main.aqi;
+        const pm25 = entry.list[0].components.pm2_5;
+        const pm10 = entry.list[0].components.pm10;
+        const time = new Date(entry.timestamp).toLocaleString();
+
+        const row = document.createElement("tr");
+        row.className = getAQIColor(aqi);
+        row.innerHTML = `<td>${city}</td><td>${aqi}</td><td>${pm25}</td><td>${pm10}</td><td>${time}</td>`;
+        tbody.appendChild(row);
+      });
+    }
+
+    loadAQI();
+    setInterval(loadAQI, 300000); // refresh every 5 minutes
+  </script>
+</body>
+</html>
