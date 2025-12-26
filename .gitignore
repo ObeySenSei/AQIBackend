@@ -1,10 +1,5 @@
-# Dependencies
 node_modules/
-
-# Environment variables
 .env
-
-# Local MongoDB / database files (VERY IMPORTANT)
 data/
 data/db/
 *.log
