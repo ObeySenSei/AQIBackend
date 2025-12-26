@@ -10,12 +10,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = 5000;
-const API_KEY = "4aa84dd053f9369fb00529d44f67aeed"; // Your API key
+// ================== ENV VARIABLES ==================
+const PORT = process.env.PORT || 5000;
+const API_KEY = process.env.API_KEY || "4aa84dd053f9369fb00529d44f67aeed"; // Set in Railway
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/aqiDB";
 
 // ================== CONNECT MONGODB ==================
 mongoose
-  .connect("mongodb://127.0.0.1:27017/aqiDB")
+  .connect(MONGODB_URI)
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB error:", err));
 
