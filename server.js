@@ -1,3 +1,4 @@
+console.log("MONGODB_URI:", MONGODB_URI);
 // ================== IMPORT MODULES ==================
 require('dotenv').config(); // Load .env locally
 const express = require("express");
