@@ -1,4 +1,3 @@
-console.log("MONGODB_URI:", MONGODB_URI);
 // ================== IMPORT MODULES ==================
 require('dotenv').config(); // Load .env locally
 const express = require("express");
@@ -13,12 +12,19 @@ const API_KEY = process.env.API_KEY;
 const MONGODB_URI = process.env.MONGODB_URI;
 const JWT_SECRET = process.env.JWT_SECRET || "your_super_secret_jwt_key";
 
+console.log("MONGODB_URI:", MONGODB_URI); // ✅ after declaration
+
 // ================== INIT APP ==================
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // ================== CONNECT MONGODB ==================
+if (!MONGODB_URI) {
+  console.error("❌ MONGODB_URI is not defined! Check Railway Environment Variables.");
+  process.exit(1); // Stop app if URI is missing
+}
+
 mongoose
   .connect(MONGODB_URI)
   .then(() => console.log("✅ Connected to MongoDB"))
