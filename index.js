@@ -1,114 +1,121 @@
-require("dotenv").config();
-
+// ================== IMPORT MODULES ==================
+require('dotenv').config(); // Local fallback for dev
 const express = require("express");
-const { MongoClient } = require("mongodb");
+const mongoose = require("mongoose");
 const axios = require("axios");
+const cors = require("cors");
+const cron = require("node-cron");
 
+// ================== ENV VARIABLES ==================
+const PORT = process.env.PORT || 5000;
+const API_KEY = process.env.API_KEY;
+const JWT_SECRET = process.env.JWT_SECRET || "your_super_secret_jwt_key";
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI || !API_KEY) {
+  console.error("❌ Missing required environment variables!");
+  process.exit(1);
+}
+
+// ================== INIT APP ==================
 const app = express();
-const PORT = 5000;
+app.use(cors());
+app.use(express.json());
 
-// ================== MONGODB CONFIG ==================
-const mongoUrl = "mongodb://127.0.0.1:27017";
-const dbName = "aqiDB";
-const collectionName = "aqiData";
+// ================== CONNECT MONGODB ==================
+const maskedUri = MONGODB_URI.replace(/\/\/.*?:.*?@/, "//[USER]:[PASSWORD]@");
+mongoose
+  .connect(MONGODB_URI)
+  .then(() => console.log(`✅ Connected to MongoDB: ${maskedUri}`))
+  .catch(err => {
+    console.error("❌ MongoDB connection error:", err.message);
+    process.exit(1);
+  });
 
-const client = new MongoClient(mongoUrl);
-
-// ================== OPENWEATHER CONFIG ==================
-const apiKey = "4aa84dd053f9369fb00529d44f67aeed";
-
-// Cities list
-const cities = [
-  { name: "Tezpur", lat: 26.6516, lon: 92.7950 },
-  { name: "Guwahati", lat: 26.1445, lon: 91.7362 },
-  { name: "Mumbai", lat: 19.0760, lon: 72.8777 },
-  { name: "Delhi", lat: 28.6139, lon: 77.2090 },
-  { name: "Bangalore", lat: 12.9716, lon: 77.5946 }
-];
-
-// ================== DB CONNECTION ==================
-async function connectDB() {
-  if (!client.topology?.isConnected()) {
-    await client.connect();
-    console.log("✅ Connected to MongoDB");
-  }
-  return client.db(dbName).collection(collectionName);
-}
-
-// ================== FETCH AQI FROM API ==================
-async function fetchAQI(city) {
-  const url = `https://api.openweathermap.org/data/2.5/air_pollution?lat=${city.lat}&lon=${city.lon}&appid=${apiKey}`;
-  const response = await axios.get(url);
-  return response.data;
-}
-
-// ================== SAVE AQI DATA ==================
-async function saveAQI() {
-  const collection = await connectDB();
-
-  for (const city of cities) {
-    try {
-      const data = await fetchAQI(city);
-
-      await collection.insertOne({
-        city: city.name,
-        list: data.list,
-        timestamp: new Date()
-      });
-
-      console.log(`✅ AQI data saved for ${city.name}`);
-    } catch (err) {
-      console.error(`❌ Failed for ${city.name}`, err.message);
-    }
-  }
-}
-
-// ================== ROUTES ==================
-app.get("/", (req, res) => {
-  res.send("✅ Backend is alive");
+// ================== SCHEMA ==================
+const AQISchema = new mongoose.Schema({
+  city: String,
+  aqi: Number,
+  pm2_5: Number,
+  pm10: Number,
+  timestamp: { type: Date, default: Date.now },
 });
 
-/*
-  THIS ROUTE MATCHES YOUR FRONTEND EXACTLY:
-  GET /api/aqi?city=Delhi
-*/
+const AQI = mongoose.model("AQI", AQISchema);
+
+// ================== CITIES ==================
+const cities = [
+  { name: "Tezpur", lat: 26.6528, lon: 92.7926 },
+  { name: "Guwahati", lat: 26.1445, lon: 91.7362 },
+  { name: "Delhi", lat: 28.6139, lon: 77.2090 },
+  { name: "Mumbai", lat: 19.0760, lon: 72.8777 },
+  { name: "Bangalore", lat: 12.9716, lon: 77.5946 },
+];
+
+// ================== TEST ROUTE ==================
+app.get("/", (req, res) => res.send("✅ Backend is alive"));
+
+// ================== FETCH AQI MANUALLY ==================
+app.get("/api/fetch-aqi", async (req, res) => {
+  try {
+    for (const city of cities) {
+      const url = `http://api.openweathermap.org/data/2.5/air_pollution?lat=${city.lat}&lon=${city.lon}&appid=${API_KEY}`;
+      const response = await axios.get(url);
+      const p = response.data.list[0];
+
+      await AQI.create({
+        city: city.name,
+        aqi: p.main.aqi,
+        pm2_5: p.components.pm2_5,
+        pm10: p.components.pm10,
+      });
+    }
+    res.send("✅ AQI data fetched for all cities");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ================== GET LATEST AQI PER CITY ==================
 app.get("/api/aqi", async (req, res) => {
   try {
     const city = req.query.city;
-    if (!city) {
-      return res.status(400).json({ error: "City is required" });
-    }
+    if (!city) return res.status(400).json({ error: "City query parameter is required" });
 
-    const collection = await connectDB();
+    const latestAQI = await AQI.find({ city }).sort({ timestamp: -1 }).limit(1);
+    if (!latestAQI.length) return res.status(404).json({ error: "No AQI data found" });
 
-    const latest = await collection
-      .find({ city })
-      .sort({ timestamp: -1 })
-      .limit(1)
-      .toArray();
-
-    if (latest.length === 0) {
-      return res.status(404).json({ error: "No AQI data found" });
-    }
-
-    const pollution = latest[0].list[0];
-
-    // RETURN EXACT STRUCTURE FRONTEND EXPECTS
-    res.json({
-      city: city,
-      aqi: pollution.main.aqi,
-      pm2_5: pollution.components.pm2_5,
-      pm10: pollution.components.pm10
-    });
+    res.json(latestAQI[0]);
   } catch (err) {
-    console.error("❌ API error:", err.message);
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
+// ================== AUTO FETCH AQI EVERY HOUR ==================
+cron.schedule("0 * * * *", async () => {
+  console.log("⏰ Auto fetching AQI...");
+  for (const city of cities) {
+    try {
+      const url = `http://api.openweathermap.org/data/2.5/air_pollution?lat=${city.lat}&lon=${city.lon}&appid=${API_KEY}`;
+      const response = await axios.get(url);
+      const p = response.data.list[0];
+
+      await AQI.create({
+        city: city.name,
+        aqi: p.main.aqi,
+        pm2_5: p.components.pm2_5,
+        pm10: p.components.pm10,
+      });
+      console.log(`✅ AQI updated for ${city.name}`);
+    } catch (err) {
+      console.error(`❌ Error fetching AQI for ${city.name}:`, err.message);
+    }
+  }
+});
+
 // ================== START SERVER ==================
-app.listen(PORT, async () => {
-  console.log(`🚀 Backend running on http://localhost:${PORT}`);
-  console.log("⏳ Fetching AQI data for all cities...");
-  await saveAQI();
+app.listen(PORT, () => {
+  console.log(`🚀 Backend running on port ${PORT}`);
 });
