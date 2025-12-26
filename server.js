@@ -12,8 +12,8 @@ app.use(express.json());
 
 // ================== ENV VARIABLES ==================
 const PORT = process.env.PORT || 5000;
-const API_KEY = process.env.API_KEY || "4aa84dd053f9369fb00529d44f67aeed"; // Set in Railway
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://mongo:bobeANdgAaWpiVHXrkoBBlphUEOeVWKg@yamabiko.proxy.rlwy.net:41800/aqiDB";
+const API_KEY = process.env.API_KEY;           // Set in Railway
+const MONGODB_URI = process.env.MONGODB_URI;   // Set in Railway
 
 // ================== CONNECT MONGODB ==================
 mongoose
